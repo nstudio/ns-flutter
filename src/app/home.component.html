@@ -1,0 +1,442 @@
+<GridLayout rows="auto, *, auto" backgroundColor="#09090B">
+
+  <!-- ===================================================================== -->
+  <!-- ZONE 1: PRECISION INSTRUMENT TELEMETRY HEADER                         -->
+  <!-- ===================================================================== -->
+  <StackLayout
+    row="0"
+    paddingTop="8"
+    paddingBottom="10"
+    paddingLeft="14"
+    paddingRight="14"
+    backgroundColor="#0C0C0F"
+    borderBottomWidth="1"
+    borderColor="#1F1F23"
+  >
+    <!-- Title Bar + Live FFI Pointer Pill -->
+    <GridLayout columns="*, auto" marginBottom="8">
+      <StackLayout col="0">
+        <Label
+          text="NS // FLUTTER CO-PROCESSOR"
+          fontSize="13"
+          fontWeight="800"
+          letterSpacing="0.08"
+          color="#F4F4F5"
+        ></Label>
+        <Label
+          [text]="lastBridgeEvent()"
+          fontSize="10"
+          fontFamily="Courier"
+          color="#A1A1AA"
+          marginTop="2"
+          textWrap="false"
+        ></Label>
+      </StackLayout>
+
+      <!-- Zero-Copy FFI Pointer Status Badge -->
+      <GridLayout
+        col="1"
+        columns="auto, auto"
+        backgroundColor="#141418"
+        borderRadius="6"
+        paddingLeft="9"
+        paddingRight="9"
+        paddingTop="5"
+        paddingBottom="5"
+        borderWidth="1"
+        [borderColor]="ffiVerified() ? '#27272A' : '#78350F'"
+        verticalAlignment="center"
+        (tap)="triggerShockwave()"
+      >
+        <ContentView
+          col="0"
+          width="6"
+          height="6"
+          borderRadius="3"
+          [backgroundColor]="ffiVerified() ? '#10B981' : '#F59E0B'"
+          verticalAlignment="center"
+          marginRight="6"
+        ></ContentView>
+        <Label
+          col="1"
+          [text]="'FFI ' + pointerHex()"
+          fontSize="10"
+          fontFamily="Courier"
+          fontWeight="700"
+          color="#E4E4E7"
+        ></Label>
+      </GridLayout>
+    </GridLayout>
+
+    <!-- 4-Column Hardware Readout Strip -->
+    <GridLayout columns="*, *, *, *">
+      <!-- Frame Rate -->
+      <StackLayout
+        col="0"
+        backgroundColor="#121215"
+        borderRadius="7"
+        padding="7"
+        marginRight="3"
+        borderWidth="1"
+        borderColor="#222226"
+      >
+        <Label text="FRAME RATE" fontSize="8.5" fontFamily="Courier" fontWeight="700" color="#71717A"></Label>
+        <Label [text]="flutterFps() + ' fps'" fontSize="11.5" fontFamily="Courier" fontWeight="800" color="#F4F4F5" marginTop="2"></Label>
+        <Label [text]="frameTimeUs() + ' µs/frame'" fontSize="8.5" fontFamily="Courier" color="#71717A"></Label>
+      </StackLayout>
+
+      <!-- Embedded UIKit View -->
+      <StackLayout
+        col="1"
+        backgroundColor="#121215"
+        borderRadius="7"
+        padding="7"
+        marginLeft="3"
+        marginRight="3"
+        borderWidth="1"
+        borderColor="#222226"
+        (tap)="toggleNativeIsland()"
+      >
+        <Label text="UIKIT VIEW" fontSize="8.5" fontFamily="Courier" fontWeight="700" color="#71717A"></Label>
+        <Label [text]="embeddedUIViewPointer()" fontSize="9.5" fontFamily="Courier" fontWeight="800" color="#FF5912" marginTop="3"></Label>
+        <Label [text]="nativeViewTaps() + ' events'" fontSize="8.5" fontFamily="Courier" color="#71717A"></Label>
+      </StackLayout>
+
+      <!-- AOT Dart Isolate -->
+      <StackLayout
+        col="2"
+        backgroundColor="#121215"
+        borderRadius="7"
+        padding="7"
+        marginLeft="3"
+        marginRight="3"
+        borderWidth="1"
+        borderColor="#222226"
+        (tap)="runDartIsolate()"
+      >
+        <Label text="ISOLATE" fontSize="8.5" fontFamily="Courier" fontWeight="700" color="#71717A"></Label>
+        <Label [text]="isolateMops() + ' Mops'" fontSize="11" fontFamily="Courier" fontWeight="800" color="#10B981" marginTop="2"></Label>
+        <Label [text]="isolateMs() + ' ms (2.5M)'" fontSize="8.5" fontFamily="Courier" color="#71717A"></Label>
+      </StackLayout>
+
+      <!-- Zero-Copy DMA Ticks -->
+      <StackLayout
+        col="3"
+        backgroundColor="#121215"
+        borderRadius="7"
+        padding="7"
+        marginLeft="3"
+        borderWidth="1"
+        borderColor="#222226"
+      >
+        <Label text="DMA TICKS" fontSize="8.5" fontFamily="Courier" fontWeight="700" color="#71717A"></Label>
+        <Label [text]="syncTicks()" fontSize="11.5" fontFamily="Courier" fontWeight="800" color="#F4F4F5" marginTop="2"></Label>
+        <Label [text]="'XY ' + touchCoords()" fontSize="8.5" fontFamily="Courier" color="#71717A"></Label>
+      </StackLayout>
+    </GridLayout>
+  </StackLayout>
+
+
+  <!-- ===================================================================== -->
+  <!-- ZONE 2: LIVE FLUTTER IMPELLER VIEWPORT + EMBEDDED UIKIT PLATFORMVIEW  -->
+  <!-- ===================================================================== -->
+  <GridLayout row="1" backgroundColor="#09090B">
+    <Flutter id="nexusMain" width="100%" height="100%"></Flutter>
+  </GridLayout>
+
+
+  <!-- ===================================================================== -->
+  <!-- ZONE 3: NATIVESCRIPT ANGULAR 22 ZONELESS INSPECTOR DECK               -->
+  <!-- ===================================================================== -->
+  <StackLayout
+    row="2"
+    backgroundColor="#0C0C0F"
+    paddingTop="10"
+    paddingBottom="22"
+    paddingLeft="14"
+    paddingRight="14"
+    borderTopWidth="1"
+    borderColor="#222226"
+  >
+    <!-- Compact DMA Status Line -->
+    <GridLayout columns="*, auto" marginBottom="8">
+      <Label col="0" text="NSMutableData <-> Pointer<Float> (64x f32)" fontSize="9.5" fontFamily="Courier" color="#71717A"></Label>
+      <Label col="1" [text]="'PHASE ' + kineticEnergy() + ' J'" fontSize="9.5" fontFamily="Courier" fontWeight="700" color="#A1A1AA"></Label>
+    </GridLayout>
+
+    <!-- 3-Tab Segmented Switcher -->
+    <GridLayout
+      columns="*, *, *"
+      backgroundColor="#141418"
+      borderRadius="8"
+      padding="3"
+      marginBottom="10"
+      borderWidth="1"
+      borderColor="#222226"
+    >
+      <Label
+        col="0"
+        text="Controls"
+        fontSize="11"
+        fontWeight="700"
+        textAlignment="center"
+        paddingTop="6"
+        paddingBottom="6"
+        borderRadius="6"
+        [backgroundColor]="activeDeckTab() === 0 ? '#27272A' : 'transparent'"
+        [color]="activeDeckTab() === 0 ? '#F4F4F5' : '#71717A'"
+        (tap)="selectDeckTab(0)"
+      ></Label>
+      <Label
+        col="1"
+        text="Memory (FFI)"
+        fontSize="11"
+        fontWeight="700"
+        textAlignment="center"
+        paddingTop="6"
+        paddingBottom="6"
+        borderRadius="6"
+        [backgroundColor]="activeDeckTab() === 1 ? '#27272A' : 'transparent'"
+        [color]="activeDeckTab() === 1 ? '#F4F4F5' : '#71717A'"
+        (tap)="selectDeckTab(1)"
+      ></Label>
+      <Label
+        col="2"
+        text="Footprint"
+        fontSize="11"
+        fontWeight="700"
+        textAlignment="center"
+        paddingTop="6"
+        paddingBottom="6"
+        borderRadius="6"
+        [backgroundColor]="activeDeckTab() === 2 ? '#27272A' : 'transparent'"
+        [color]="activeDeckTab() === 2 ? '#F4F4F5' : '#71717A'"
+        (tap)="selectDeckTab(2)"
+      ></Label>
+    </GridLayout>
+
+    <!-- TAB 0: Cross-Runtime Signal & Zero-Copy Parameter Controls -->
+    <StackLayout [visibility]="activeDeckTab() === 0 ? 'visible' : 'collapsed'">
+      <!-- Topology Mode Selector -->
+      <GridLayout columns="auto, *, *, *" marginBottom="8">
+        <Label col="0" text="Topology" fontSize="11" fontWeight="600" color="#A1A1AA" verticalAlignment="center" marginRight="10"></Label>
+        @for (mode of morphModes; track mode.id) {
+          <Label
+            [col]="mode.id + 1"
+            [text]="mode.label"
+            fontSize="10.5"
+            fontFamily="Courier"
+            fontWeight="700"
+            textAlignment="center"
+            paddingTop="6"
+            paddingBottom="6"
+            marginLeft="2"
+            marginRight="2"
+            borderRadius="6"
+            borderWidth="1"
+            [borderColor]="morphMode() === mode.id ? '#FF5912' : '#27272A'"
+            [backgroundColor]="morphMode() === mode.id ? '#FF5912' : '#141418'"
+            [color]="morphMode() === mode.id ? '#FFFFFF' : '#A1A1AA'"
+            (tap)="setMorphMode(mode.id)"
+          ></Label>
+        }
+      </GridLayout>
+
+      <!-- Zero-Copy Slider 1: Frequency -->
+      <GridLayout columns="76, *, 46" marginBottom="4">
+        <Label col="0" text="Frequency" fontSize="11" color="#A1A1AA" verticalAlignment="center"></Label>
+        <Slider
+          col="1"
+          minValue="10"
+          maxValue="320"
+          [value]="orbitalSpeedPct()"
+          (valueChange)="onSpeedSliderChange($event)"
+          color="#FF5912"
+          backgroundColor="#27272A"
+        ></Slider>
+        <Label
+          col="2"
+          [text]="(orbitalSpeedPct() / 100).toFixed(2) + 'x'"
+          fontSize="10.5"
+          fontFamily="Courier"
+          fontWeight="700"
+          color="#F4F4F5"
+          textAlignment="right"
+          verticalAlignment="center"
+        ></Label>
+      </GridLayout>
+
+      <!-- Zero-Copy Slider 2: Harmonics -->
+      <GridLayout columns="76, *, 46" marginBottom="8">
+        <Label col="0" text="Harmonics" fontSize="11" color="#A1A1AA" verticalAlignment="center"></Label>
+        <Slider
+          col="1"
+          minValue="30"
+          maxValue="260"
+          [value]="particleCount()"
+          (valueChange)="onParticleSliderChange($event)"
+          color="#E4E4E7"
+          backgroundColor="#27272A"
+        ></Slider>
+        <Label
+          col="2"
+          [text]="particleCount() + 'n'"
+          fontSize="10.5"
+          fontFamily="Courier"
+          fontWeight="700"
+          color="#F4F4F5"
+          textAlignment="right"
+          verticalAlignment="center"
+        ></Label>
+      </GridLayout>
+
+      <!-- Action Row -->
+      <GridLayout columns="*, *, *">
+        <Label
+          col="0"
+          text="Step Impulse"
+          fontSize="10.5"
+          fontFamily="Courier"
+          fontWeight="700"
+          color="#F4F4F5"
+          backgroundColor="#16161A"
+          borderRadius="7"
+          paddingTop="8"
+          paddingBottom="8"
+          marginRight="4"
+          textAlignment="center"
+          borderWidth="1"
+          borderColor="#27272A"
+          (tap)="triggerShockwave()"
+        ></Label>
+        <Label
+          col="1"
+          text="Isolate (2.5M)"
+          fontSize="10.5"
+          fontFamily="Courier"
+          fontWeight="700"
+          color="#FFFFFF"
+          backgroundColor="#FF5912"
+          borderRadius="7"
+          paddingTop="8"
+          paddingBottom="8"
+          marginLeft="4"
+          marginRight="4"
+          textAlignment="center"
+          (tap)="runDartIsolate()"
+        ></Label>
+        <Label
+          col="2"
+          [text]="tourRunning() ? 'Tour Active' : 'Auto Demo'"
+          fontSize="10.5"
+          fontFamily="Courier"
+          fontWeight="700"
+          [color]="tourRunning() ? '#10B981' : '#E4E4E7'"
+          backgroundColor="#16161A"
+          borderRadius="7"
+          paddingTop="8"
+          paddingBottom="8"
+          marginLeft="4"
+          textAlignment="center"
+          borderWidth="1"
+          [borderColor]="tourRunning() ? '#10B981' : '#27272A'"
+          (tap)="startShowcaseTour()"
+        ></Label>
+      </GridLayout>
+    </StackLayout>
+
+    <!-- TAB 1: Live Zero-Copy Float32Array Shared Memory Inspector -->
+    <StackLayout [visibility]="activeDeckTab() === 1 ? 'visible' : 'collapsed'">
+      <GridLayout columns="*, auto" marginBottom="6">
+        <Label col="0" [text]="'BASE ADDR ' + pointerHex() + ' · 256 BYTES'" fontSize="9.5" fontFamily="Courier" fontWeight="700" color="#FF5912"></Label>
+        <Label col="1" text="ZERO-COPY DMA" fontSize="9" fontFamily="Courier" fontWeight="700" color="#10B981"></Label>
+      </GridLayout>
+
+      <GridLayout columns="*, *" rows="auto, auto, auto, auto, auto, auto">
+        @for (slot of memoryTable(); track slot.index; let i = $index) {
+          <GridLayout
+            [row]="rowOf(i)"
+            [col]="i % 2"
+            columns="auto, *, auto"
+            backgroundColor="#121216"
+            borderRadius="5"
+            paddingLeft="7"
+            paddingRight="7"
+            paddingTop="4"
+            paddingBottom="4"
+            margin="2"
+            borderWidth="1"
+            borderColor="#222226"
+          >
+            <Label col="0" [text]="'[' + slot.index + '] '" fontSize="9" fontFamily="Courier" color="#71717A"></Label>
+            <Label col="1" [text]="slot.name" fontSize="9" fontFamily="Courier" fontWeight="700" color="#A1A1AA"></Label>
+            <Label col="2" [text]="slot.value" fontSize="9.5" fontFamily="Courier" fontWeight="700" color="#F4F4F5"></Label>
+          </GridLayout>
+        }
+      </GridLayout>
+    </StackLayout>
+
+    <!-- TAB 2: Physical Footprint & Production Outcome Ledger -->
+    <StackLayout [visibility]="activeDeckTab() === 2 ? 'visible' : 'collapsed'">
+      <GridLayout columns="*, *" rows="auto, auto" marginBottom="6">
+        <StackLayout row="0" col="0" backgroundColor="#121216" borderRadius="6" padding="7" marginRight="3" marginBottom="5" borderWidth="1" borderColor="#222226">
+          <Label text="SHARED BRIDGE RAM" fontSize="8" fontFamily="Courier" fontWeight="700" color="#71717A"></Label>
+          <Label text="256 Bytes (0 Copies)" fontSize="10" fontFamily="Courier" fontWeight="800" color="#10B981" marginTop="2"></Label>
+        </StackLayout>
+
+        <StackLayout row="0" col="1" backgroundColor="#121216" borderRadius="6" padding="7" marginLeft="3" marginBottom="5" borderWidth="1" borderColor="#222226">
+          <Label text="NATIVE GLUE CODE" fontSize="8" fontFamily="Courier" fontWeight="700" color="#71717A"></Label>
+          <Label text="0 Swift / Kotlin Files" fontSize="10" fontFamily="Courier" fontWeight="800" color="#FF5912" marginTop="2"></Label>
+        </StackLayout>
+
+        <StackLayout row="1" col="0" backgroundColor="#121216" borderRadius="6" padding="7" marginRight="3" borderWidth="1" borderColor="#222226">
+          <Label text="RELEASE AOT DELTA" fontSize="8" fontFamily="Courier" fontWeight="700" color="#71717A"></Label>
+          <Label text="~7.2 MB ARM64 Code" fontSize="10" fontFamily="Courier" fontWeight="800" color="#F4F4F5" marginTop="2"></Label>
+        </StackLayout>
+
+        <StackLayout row="1" col="1" backgroundColor="#121216" borderRadius="6" padding="7" marginLeft="3" borderWidth="1" borderColor="#222226">
+          <Label text="OS UIKIT & METAL" fontSize="8" fontFamily="Courier" fontWeight="700" color="#71717A"></Label>
+          <Label text="0 KB (dyld Shared)" fontSize="10" fontFamily="Courier" fontWeight="800" color="#E4E4E7" marginTop="2"></Label>
+        </StackLayout>
+      </GridLayout>
+
+      <GridLayout columns="*, *">
+        <Label
+          col="0"
+          text="Open Native UIAlertController"
+          fontSize="10"
+          fontFamily="Courier"
+          fontWeight="700"
+          color="#F4F4F5"
+          backgroundColor="#16161A"
+          borderRadius="7"
+          paddingTop="8"
+          paddingBottom="8"
+          marginRight="4"
+          textAlignment="center"
+          borderWidth="1"
+          borderColor="#27272A"
+          (tap)="openNativeActionSheetFromAngular()"
+        ></Label>
+        <Label
+          col="1"
+          [text]="showNativeIsland() ? 'Unmount UIKit View' : 'Mount UIKit View'"
+          fontSize="10"
+          fontFamily="Courier"
+          fontWeight="700"
+          color="#FF5912"
+          backgroundColor="#16161A"
+          borderRadius="7"
+          paddingTop="8"
+          paddingBottom="8"
+          marginLeft="4"
+          textAlignment="center"
+          borderWidth="1"
+          borderColor="#27272A"
+          (tap)="toggleNativeIsland()"
+        ></Label>
+      </GridLayout>
+    </StackLayout>
+  </StackLayout>
+
+</GridLayout>

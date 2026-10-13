@@ -141,6 +141,81 @@ final objcInfo = await bridge.invokeNative('objc.inspect', {'className': 'CAMeta
 
 ---
 
+## How an Angular Developer Embeds NativeScript Angular Views Inside Flutter
+
+Because NativeScript Angular components compile directly to real native `UIView` (iOS) and `android.view.View` (Android) instances—and Flutter’s `UiKitView` / `AndroidView` accepts any native OS view via `FlutterPlatformViewFactory`—an Angular developer can author normal `@Component`s and mount them inside Flutter in **3 steps**:
+
+### 1. Write a Standard Standalone Angular Component
+Use standard NativeScript Angular markup and `flutterSignal()` (or `@Input` via `creationParams`) for two-way state with Flutter:
+
+```ts
+// profile-card.component.ts
+@Component({
+  selector: 'ns-profile-card',
+  standalone: true,
+  imports: [NativeScriptCommonModule],
+  template: `
+    <GridLayout rows="auto, auto" padding="16" backgroundColor="#121216" borderRadius="12">
+      <Label row="0" [text]="title()" fontSize="14" fontWeight="700" color="#F4F4F5"></Label>
+      <Button row="1" text="Sync with Flutter" (tap)="count.set(count() + 1)"></Button>
+    </GridLayout>
+  `,
+})
+export class ProfileCardComponent {
+  readonly title = flutterSignal<string>('cardTitle', 'NativeScript Angular Island');
+  readonly count = flutterSignal<number>('tapCount', 0);
+}
+```
+
+### 2. Mount the Angular `ComponentRef` in the TypeScript `PlatformViewFactory`
+Inside [`src/flutter-bridge/platform-view-factory.ts`](./src/flutter-bridge/platform-view-factory.ts), instantiate the Angular component using Angular’s `createComponent()`, attach its NativeScript root view (`componentRef.location.nativeElement`), and return its underlying `ios` (`UIView`) or `android` (`android.view.View`) handle to Flutter:
+
+```ts
+// Inside FlutterPlatformView.view() in TypeScript:
+const compRef = createComponent(ProfileCardComponent, {
+  environmentInjector: appRef.injector,
+});
+appRef.attachView(compRef.hostView);
+
+const nsView = compRef.location.nativeElement as View;
+nsView._setupAsRootView({});
+nsView.callLoaded();
+
+return nsView.ios; // Returns the real UIView directly to Flutter's UiKitView!
+```
+
+### 3. Drop It Anywhere in Flutter’s Widget Tree
+In Dart ([`flutter_views/lib/main.dart`](./flutter_views/lib/main.dart)), place a `UiKitView` (or `AndroidView`) anywhere in a `Column`, `Stack`, or `CustomScrollView`—and bind to the same `bridge.signal()` for instant two-way reactivity:
+
+```dart
+// In Flutter (flutter_views/lib/main.dart)
+final tapCount = bridge.signal<int>('tapCount', 0);
+
+Column(
+  children: [
+    const SizedBox(
+      height: 120,
+      child: UiKitView(
+        viewType: 'nativescript-view',
+        creationParams: {'component': 'ns-profile-card'},
+        creationParamsCodec: StandardMessageCodec(),
+      ),
+    ),
+    ValueListenableBuilder<int>(
+      valueListenable: tapCount,
+      builder: (_, count, __) => Text('Tapped $count times in Angular'),
+    ),
+  ],
+)
+```
+
+### Summary of the Developer Experience
+1. **Authoring**: 100% standard Angular (`@Component`, Signals, DI, Services, RxJS) with external `.html` templates ([`home.component.html`](./src/app/home.component.html)).
+2. **Rendering**: NativeScript turns the Angular template into real `UIKit` / `Android` views inside Flutter’s widget layout tree (`0` HTML/WebView, `0` Swift/Kotlin plugin code).
+3. **Data Flow**: Low-frequency state uses `flutterSignal<T>()` (`1` line in TS and Dart); high-frequency 120Hz streams (gestures, physics, audio) read/write directly to `SharedMemoryBridge.instance.floats` (`dart:ffi`).
+
+---
+
 ## Quickstart
 
 ### Prerequisites
