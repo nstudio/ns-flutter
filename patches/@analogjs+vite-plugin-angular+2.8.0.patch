@@ -1,0 +1,228 @@
+diff --git a/node_modules/@analogjs/vite-plugin-angular/src/lib/angular-vite-plugin.d.ts b/node_modules/@analogjs/vite-plugin-angular/src/lib/angular-vite-plugin.d.ts
+index 3cbaf64..292f577 100644
+--- a/node_modules/@analogjs/vite-plugin-angular/src/lib/angular-vite-plugin.d.ts
++++ b/node_modules/@analogjs/vite-plugin-angular/src/lib/angular-vite-plugin.d.ts
+@@ -35,6 +35,15 @@ export interface PluginOptions {
+      * runtime styles (`<link>` URLs) so CSS can hot-update independently.
+      */
+     liveReload?: boolean;
++    /**
++     * When `liveReload` is `true`, controls whether the Angular compiler emits
++     * component styles as runtime URL references (`externalRuntimeStyles: true`,
++     * the web-targeted CSS-HMR pipeline) or inline CSS strings inside the
++     * component metadata's `styles: [...]` array (`externalRuntimeStyles: false`,
++     * the legacy non-HMR behavior). Defaults to `true` to preserve current
++     * web behavior; non-DOM runtimes (e.g. NativeScript) should pass `false`.
++     */
++    externalRuntimeStyles?: boolean;
+     disableTypeChecking?: boolean;
+     fileReplacements?: FileReplacement[];
+     /**
+diff --git a/node_modules/@analogjs/vite-plugin-angular/src/lib/angular-vite-plugin.js b/node_modules/@analogjs/vite-plugin-angular/src/lib/angular-vite-plugin.js
+index 03c40e4..7f7299a 100644
+--- a/node_modules/@analogjs/vite-plugin-angular/src/lib/angular-vite-plugin.js
++++ b/node_modules/@analogjs/vite-plugin-angular/src/lib/angular-vite-plugin.js
+@@ -1,5 +1,6 @@
+ import { mkdirSync, writeFileSync } from 'node:fs';
+-import { basename, dirname, isAbsolute, join, relative, resolve, } from 'node:path';
++import { basename, dirname, extname, isAbsolute, join, relative, resolve, } from 'node:path';
++import { pathToFileURL } from 'node:url';
+ import * as vite from 'vite';
+ import * as compilerCli from '@angular/compiler-cli';
+ import { createRequire } from 'node:module';
+@@ -39,6 +40,34 @@ export var DiagnosticModes;
+     DiagnosticModes[DiagnosticModes["All"] = 7] = "All";
+ })(DiagnosticModes || (DiagnosticModes = {}));
+ const classNames = new Map();
++function isSassEmbeddedSpawnBadFileDescriptor(error) {
++    if (!error) return false;
++    const code = typeof error === 'object' && error && 'code' in error ? error.code : undefined;
++    const message = error instanceof Error ? error.message : `${error}`;
++    return code === 'EBADF' && /\[sass\]\s+spawn\s+EBADF/.test(message);
++}
++async function preprocessStylesheet(code, filename, resolvedConfig) {
++    try {
++        return await preprocessCSS(code, `${filename}?direct`, resolvedConfig);
++    }
++    catch (error) {
++        const extension = extname(filename).toLowerCase();
++        const isSassStylesheet = extension === '.scss' || extension === '.sass';
++        if (!isSassStylesheet || !isSassEmbeddedSpawnBadFileDescriptor(error)) {
++            throw error;
++        }
++        const absoluteFilename = isAbsolute(filename) ? filename : resolve(filename);
++        const sass = await import('sass');
++        const compiled = await sass.compileStringAsync(code, {
++            loadPaths: [dirname(absoluteFilename)],
++            sourceMap: false,
++            syntax: extension === '.sass' ? 'indented' : 'scss',
++            url: pathToFileURL(absoluteFilename),
++        });
++        const cssFilename = filename.replace(/\.(scss|sass)$/i, '.css');
++        return preprocessCSS(compiled.css, `${cssFilename}?direct`, resolvedConfig);
++    }
++}
+ export function angular(options) {
+     /**
+      * Normalize plugin options so defaults
+@@ -60,6 +89,7 @@ export function angular(options) {
+         include: options?.include ?? [],
+         additionalContentDirs: options?.additionalContentDirs ?? [],
+         liveReload: options?.liveReload ?? false,
++        externalRuntimeStyles: options?.externalRuntimeStyles ?? true,
+         disableTypeChecking: options?.disableTypeChecking ?? true,
+         fileReplacements: options?.fileReplacements ?? [],
+         useAngularCompilationAPI: options?.experimental?.useAngularCompilationAPI ?? false,
+@@ -229,7 +259,7 @@ export function angular(options) {
+                     inlineComponentStyles = new Map();
+                 }
+                 if (!jit) {
+-                    styleTransform = (code, filename) => preprocessCSS(code, filename, config);
++                    styleTransform = (code, filename) => preprocessStylesheet(code, filename.replace(/\?direct$/, ''), config);
+                 }
+                 if (isTest) {
+                     // set test watch mode
+@@ -275,7 +305,7 @@ export function angular(options) {
+                 // and falls back to a worker Vite never closes, which keeps Vitest
+                 // from exiting after AOT tests with `.scss` styleUrls. (#2556)
+                 if (!jit) {
+-                    styleTransform = (code, filename) => preprocessCSS(code, filename, resolvedConfig);
++                    styleTransform = (code, filename) => preprocessStylesheet(code, filename.replace(/\?direct$/, ''), resolvedConfig);
+                 }
+                 // Defer the first compilation in test mode
+                 if (!isVitestVscode) {
+@@ -327,7 +357,7 @@ export function angular(options) {
+                     if (pluginOptions.liveReload &&
+                         result?.hmrEligible &&
+                         classNames.get(fileId)) {
+-                        const relativeFileId = `${normalizePath(relative(process.cwd(), fileId))}@${classNames.get(fileId)}`;
++                        const relativeFileId = `${normalizePath(relative(pluginOptions.workspaceRoot, fileId))}@${classNames.get(fileId)}`;
+                         sendHMRComponentUpdate(ctx.server, relativeFileId);
+                         return ctx.modules.map((mod) => {
+                             if (mod.id === ctx.file) {
+@@ -403,7 +433,7 @@ export function angular(options) {
+                     ]);
+                     if (updates.length > 0) {
+                         updates.forEach((updateId) => {
+-                            const impRelativeFileId = `${normalizePath(relative(process.cwd(), updateId))}@${classNames.get(updateId)}`;
++                            const impRelativeFileId = `${normalizePath(relative(pluginOptions.workspaceRoot, updateId))}@${classNames.get(updateId)}`;
+                             sendHMRComponentUpdate(ctx.server, impRelativeFileId);
+                         });
+                         return ctx.modules.map((mod) => {
+@@ -415,8 +445,44 @@ export function angular(options) {
+                     }
+                     return mods;
+                 }
+-                // clear HMR updates with a full reload
+-                classNames.clear();
++                // Fallback path: file does not match any of the recognized
++                // source/template/style/component-style extensions handled
++                // above (.ts/.tsx/.cts/.mts and .html/.htm/.css/.less/.sass/.scss).
++                //
++                // Vite calls `handleHotUpdate` for ANY file the dev server's
++                // watcher sees change — including config files that aren't in
++                // the moduleGraph (`.env`, `.env.azconfig`, `tsconfig*.json`,
++                // `package-lock.json`, generated artefacts under `src/.generated/`,
++                // etc.). The previous behavior here was `classNames.clear()` —
++                // a defensive reset intended to "force a full reload" on
++                // anything we don't recognize.
++                //
++                // That clear was unsound: it nukes the in-memory map of
++                // `<absolute-ts-path> → <ClassName>` that the `.html` /
++                // component-style branch above depends on to look up which
++                // Angular class to broadcast `angular:component-update` for.
++                // Once cleared, every subsequent template/style edit falls
++                // through the live-reload path with `updates.length === 0`,
++                // returns `mods` (the importing modules) without marking
++                // anything self-accepting, and Vite emits its default
++                // `full-reload` payload. On NativeScript that surfaces as
++                // `[vite] (client) page reload <file>` and the simulator
++                // freezes on the HMR-applying overlay because there is no
++                // browser-style page reload to consume the payload.
++                //
++                // Real-world trigger: tooling on UPS1 (and many monorepos)
++                // touches `.env.azconfig` during dev startup, which fires
++                // this fallback BEFORE the user's first save and silently
++                // wipes 200+ component class registrations.
++                //
++                // Fix: don't clear. The map is naturally re-populated by the
++                // `transform` hook the next time a `.ts` file is requested
++                // (see `getFileMetadata` → `classNames.set`); there is no
++                // observable benefit from clearing it here. Returning
++                // `ctx.modules` unchanged preserves Vite's default behavior
++                // for unrecognized files (full-reload fallback handled by
++                // Vite core or other plugins) without breaking the
++                // template-HMR path.
+                 return ctx.modules;
+             },
+             resolveId(id, importer) {
+@@ -679,7 +745,7 @@ export function angular(options) {
+         compilationPlugin,
+         !pluginOptions.fastCompile &&
+             pluginOptions.liveReload &&
+-            liveReloadPlugin({ classNames, fileEmitter }),
++            liveReloadPlugin({ classNames, fileEmitter, workspaceRoot: pluginOptions.workspaceRoot }),
+         // Register from the caller-facing option so encapsulation still ships
+         // when tests/Angular version gates disable the HMR compilation flags.
+         options?.liveReload && encapsulateComponentStylesPlugin(),
+@@ -889,7 +955,14 @@ export function angular(options) {
+             await _doPerformCompilation(config, ids);
+             // Flip after a successful compile so the *next* pass can emit
+             // external runtime styles. The emit that just finished stays inlined.
+-            if (pluginOptions.liveReload && watchMode) {
++            //
++            // `externalRuntimeStyles: false` holds this off permanently: every
++            // downstream consumer of `liveReloadExternalStyles` (the hash-filename
++            // branch in `transformStylesheet`, `shouldEnableExternalRuntimeStyles`,
++            // and the incremental-program discard) then keeps the inlined path.
++            // NativeScript has no CSSOM or `<link>` mechanism to fetch the hash
++            // URLs Angular would otherwise emit into `styleUrls`.
++            if (pluginOptions.liveReload && watchMode && pluginOptions.externalRuntimeStyles) {
+                 liveReloadExternalStyles = true;
+             }
+             if (usedExternalStyles) {
+@@ -1359,9 +1432,11 @@ export function mapTemplateUpdatesToFiles(templateUpdates) {
+     return updatesByFile;
+ }
+ function sendHMRComponentUpdate(server, id) {
++    const encoded = encodeURIComponent(id);
++    const ts = Date.now();
+     server.ws.send('angular:component-update', {
+-        id: encodeURIComponent(id),
+-        timestamp: Date.now(),
++        id: encoded,
++        timestamp: ts,
+     });
+     classNames.delete(id);
+ }
+diff --git a/node_modules/@analogjs/vite-plugin-angular/src/lib/live-reload-plugin.js b/node_modules/@analogjs/vite-plugin-angular/src/lib/live-reload-plugin.js
+index 8678b77..413ecf8 100644
+--- a/node_modules/@analogjs/vite-plugin-angular/src/lib/live-reload-plugin.js
++++ b/node_modules/@analogjs/vite-plugin-angular/src/lib/live-reload-plugin.js
+@@ -2,7 +2,7 @@ import { resolve } from 'node:path';
+ import { normalizePath } from 'vite';
+ const ANGULAR_COMPONENT_PREFIX = '/@ng/component';
+ const FILE_PREFIX = 'file:';
+-export function liveReloadPlugin({ classNames, fileEmitter, }) {
++export function liveReloadPlugin({ classNames, fileEmitter, workspaceRoot, }) {
+     return {
+         name: 'analogjs-live-reload-plugin',
+         apply: 'serve',
+@@ -23,7 +23,7 @@ export function liveReloadPlugin({ classNames, fileEmitter, }) {
+                     return;
+                 }
+                 const [fileId] = decodeURIComponent(componentId).split('@');
+-                const resolvedId = normalizePath(resolve(process.cwd(), fileId));
++                const resolvedId = normalizePath(resolve(workspaceRoot || process.cwd(), fileId));
+                 const invalidated = !!server.moduleGraph.getModuleById(resolvedId)
+                     ?.lastInvalidationTimestamp && classNames.get(resolvedId);
+                 // don't send an HMR update until the file has been invalidated
+@@ -55,7 +55,7 @@ export function liveReloadPlugin({ classNames, fileEmitter, }) {
+                 if (!componentId) {
+                     return;
+                 }
+-                const result = fileEmitter(normalizePath(resolve(process.cwd(), decodeURIComponent(componentId).split('@')[0])));
++                const result = fileEmitter(normalizePath(resolve(workspaceRoot || process.cwd(), decodeURIComponent(componentId).split('@')[0])));
+                 return result?.hmrUpdateCode || '';
+             }
+             return;
