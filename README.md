@@ -4,6 +4,8 @@
 
 An architectural showcase demonstrating how **NativeScript 9.1** (direct TypeScript access to 100% of iOS/Android OS APIs) and **Flutter 3.41** (120Hz Impeller GPU canvas + AOT ARM64 Dart `Isolate` compute) can operate together in the same process over a **256-byte zero-copy C pointer**—with **0 lines of Swift, Objective-C, Kotlin, or Java glue code**.
 
+https://github.com/user-attachments/assets/c9a94261-2149-4d83-aedb-6698fa517051
+
 ---
 
 ## Physical Footprint & Production Outcome
